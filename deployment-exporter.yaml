@@ -1,0 +1,74 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vm-exporter
+  namespace: alitke-migrate-vm-demo
+spec:
+  selector:
+    matchLabels:
+      app: vm-exporter
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: vm-exporter
+    spec:
+      containers:
+      - name: exporter
+        image: quay.io/alitke/vm-exporter
+        resources:
+          requests:
+            memory: 100Mi
+            cpu: 0.2
+        ports:
+        - name: http
+          containerPort: 8080
+        env:
+        - name: "PORT"
+          value: "8080"
+        - name: "DISK_FILE"
+          value: "/data/disk.img"
+        volumeMounts:
+        - mountPath: /data
+          name: vm-disk
+      volumes:
+      - name: vm-disk
+        persistentVolumeClaim:
+          claimName: vagabond
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vm-exporter
+  namespace: alitke-migrate-vm-demo
+spec:
+  ipFamilies:
+  - IPv4
+  ipFamilyPolicy: SingleStack
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 8080
+    name: http
+  selector:
+    app: vm-exporter
+  sessionAffinity: None
+  type: NodePort
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  annotations:
+    openshift.io/host.generated: "true"
+  name: vm-exporter
+  namespace: alitke-migrate-vm-demo
+spec:
+  host: vm-exporter-alitke-migrate-vm-demo.apps.example.com
+  port:
+    targetPort: http
+  to:
+    kind: Service
+    name: vm-exporter
+    weight: 100
+  wildcardPolicy: None
